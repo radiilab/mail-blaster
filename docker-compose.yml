@@ -1,45 +1,56 @@
-version: '2'
-
 services:
-
-  mauticdb:
-    image: percona/percona-server:5.7
-    container_name: mauticdb
-    volumes:
-      - mysql_data:/var/lib/mysql
+  db:
+    image: mysql:8.0
+    container_name: mautic-db
+    command: >-
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+      --default-authentication-plugin=mysql_native_password
     environment:
-      - MYSQL_ROOT_PASSWORD=mysecret
-    command:
-      --character-set-server=utf8mb4 --collation-server=utf8mb4_general_ci
+      - MYSQL_DATABASE=mautic
+      - MYSQL_USER=mautic
+      - MYSQL_PASSWORD=${MAUTIC_DB_PASSWORD:-mauticdbpass}
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-change_me_root}
+    volumes:
+      - db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     networks:
       - mautic-net
 
   mautic:
     image: mautic/mautic:latest
     container_name: mautic
-    links:
-      - mauticdb:mysql
     depends_on:
-      - mauticdb
+      db:
+        condition: service_healthy
     ports:
-      - 8080:80
+      - "8080:80"
     volumes:
       - mautic_data:/var/www/html
     environment:
-      - MAUTIC_DB_HOST=mauticdb
-      - MYSQL_PORT_3306_TCP=3306
-      - MAUTIC_DB_USER=root
-      - MAUTIC_DB_PASSWORD=mysecret
+      - MAUTIC_DB_HOST=db
       - MAUTIC_DB_NAME=mautic
+      - MAUTIC_DB_USER=mautic
+      - MAUTIC_DB_PASSWORD=${MAUTIC_DB_PASSWORD:-mauticdbpass}
       - MAUTIC_RUN_CRON_JOBS=true
+      # Configure Gmail SMTP (set MAUTIC_MAILER_DSN in .env):
+      # Example: smtp://user%40gmail.com:app-password@smtp.gmail.com:587?encryption=tls
+      - MAUTIC_MAILER_DSN=${MAUTIC_MAILER_DSN:-}
+      # Some images read MAILER_DSN; export both for safety
+      - MAILER_DSN=${MAUTIC_MAILER_DSN:-}
     networks:
       - mautic-net
 
 volumes:
-  mysql_data:
+  db_data:
     driver: local
   mautic_data:
     driver: local
+
 networks:
   mautic-net:
     driver: bridge

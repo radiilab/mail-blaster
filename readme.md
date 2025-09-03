@@ -1,20 +1,38 @@
-# This is for the mautic doocker engine 
+# Mautic (updated) Docker setup
 
-Access your new Mautic on http://localhost:8080 or http://host-ip:8080 in a browser.
+- Access Mautic at http://localhost:8080
+- Uses MySQL 8.0 and latest Mautic image
+- Optional Gmail SMTP via `MAUTIC_MAILER_DSN`
 
-```
-This compose file was tested on compose file version 3.0+ (docker engine 1.13.0+)
+Quick start
+- Copy `.env.example` to `.env` and fill values (DB password, Gmail DSN, etc.)
+- From `mail-blaster/` run: `docker compose up -d`
+- Wait for DB to become healthy, then visit http://localhost:8080
 
-Run docker-compose up, wait for it to initialize completely, and visit http://localhost:8080 or http://host-ip:8080.
+Database connection (during Mautic install)
+- Host: `db`
+- Port: `3306`
+- Name: `mautic`
+- User: `mautic`
+- Password: value from `MAUTIC_DB_PASSWORD` in `.env`
 
-```
+Gmail SMTP (recommended)
+- Create a Google App Password (required for Gmail SMTP)
+- Set `MAUTIC_MAILER_DSN` in `.env`:
+  - Example: `smtp://alice%40gmail.com:abcdefghijklmnop@smtp.gmail.com:587?encryption=tls`
+- You can also configure mail in Mautic UI under Settings → Configuration → Email settings.
 
-Database username :root
-database password : {none}
-database host : mauticdb
-database port :3306
+Azure MySQL → Mautic contact sync
+- Script: `scripts/sync_to_mautic.py`
+- Install deps: `python3 -m venv .venv && . .venv/bin/activate && pip install -r scripts/requirements.txt`
+- Configure `.env` with your Azure MySQL and Mautic API credentials
+- Run once: `env $(grep -v '^#' .env | xargs) python3 scripts/sync_to_mautic.py`
 
-database driver : mysql PDo
+Schedule periodic sync (choose one)
+- Cron (host):
+  - `*/15 * * * * cd /path/to/mail-blaster && /usr/bin/env bash -lc 'source .venv/bin/activate && env $(grep -v "^#" .env | xargs) python3 scripts/sync_to_mautic.py >> sync.log 2>&1'`
+- Windows Task Scheduler: run the same command via a scheduled task every N minutes.
 
-bckup yes 
-backup extensions ::  bab_*.*
+Notes
+- Pin the Mautic image to a specific major (e.g., `mautic/mautic:v5-apache`) for stability if desired.
+- This stack enables Mautic’s cron inside the container (`MAUTIC_RUN_CRON_JOBS=true`).
